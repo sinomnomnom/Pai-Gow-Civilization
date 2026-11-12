@@ -52,87 +52,105 @@ public class AnyCardInPlay : CardSelector
 
 public abstract class PlayerSelector
 {
-    abstract public List<Player> Resolve(Card card);
+    abstract public List<CardPlayer> Resolve(Card source);
 }
 
 public class Opponent : PlayerSelector
 {
-    public override List<Player> Resolve(Card card)
+    public override List<CardPlayer> Resolve(Card source)
     {
-        return new List<Player>() {card.owner.opponent};
+        return new List<CardPlayer>() {source.owner.opponent};
     }
 }
 
 public class Owner : PlayerSelector
 {
-    public override List<Player> Resolve(Card card)
+    public override List<CardPlayer> Resolve(Card source)
     {
-        return new List<Player>(){card.owner};
+        return new List<CardPlayer>(){source.owner};
     }
 }
 
 public abstract class Ability
 {
-    abstract public void Activate(Card card);
+    abstract public void Activate(Card source);
 }
 
 public abstract class Condition
 {
-    abstract public bool Activate(Card card);
+    abstract public bool Activate(Card source);
 }
 
 public class Choice : Ability
 {
     private String question;
-    private String option1;
-    private String option2;
+    private List<String> options;
+    private List<Ability> results;
 
-    private Ability ability1;
-    Ability ability2;
-
-    public Choice(String question, String option1, String option2, Ability ability1, Ability ability2)
+    public Choice(String question, List<String> options, List<Ability> results, Card source)
     {
         this.question = question;
-        this.option1 = option1;
-        this.option2 = option2;
-        this.ability1 = ability1;
-        this.ability2 = ability2;
+        this.options = options;
+        this.results = results;
     }
 
     public override void Activate(Card card)
     {
-        card.owner.Choose(question, option1, option2, ability1, ability2, card).Activate(card);
+        card.owner.Choose(question, options, results, card).Activate(card);
     }
 }
 
 public class ChangeLife : Ability
 {
     int delta;
-    Player player;
+    PlayerSelector selector;
 
-    public ChangeLife(Player player, int delta)
+    public ChangeLife(PlayerSelector selector, int delta)
     {
-        this.player = player;
         this.delta = delta;
+        this.selector = selector;
     }
 
-    public override void Activate(Card card)
+    public override void Activate(Card source)
     {
-        player.ChangeLife(delta);
+        foreach (CardPlayer player in selector.Resolve(source))
+        {
+            player.ChangeLife(delta);
+        }
+    }
+}
+
+public class Sequence : Ability
+{
+    List<Ability> abilities;
+    public Sequence(List<Ability> abilities)
+    {
+        this.abilities = abilities;
+    }
+
+    public override void Activate(Card source)
+    {
+        foreach (Ability ability in abilities)
+        {
+            ability.Activate(source);
+        }
     }
 }
 
 public class Tap : Ability
 {
-    public Card cardToTap;
+    CardSelector selector;
 
-    public Tap(Card cardToTap)
+    public Tap(CardSelector selector)
     {
-        this.cardToTap = cardToTap;
+        this.selector = selector;
     }
-    public override void Activate(Card card)
+    public override void Activate(Card source)
     {
-        cardToTap.Tap();
+        foreach (Card card in selector.Resolve(source))
+        {
+            card.Tap();
+        }
     }
 }
 
@@ -142,26 +160,33 @@ public class Not : Condition
     public Not(Condition test)
     {this.test = test;}
 
-    public override bool Activate(Card card)
+    public override bool Activate(Card source)
     {
-        return !test.Activate(card);
+        return !test.Activate(source);
     }
 }
 
-public class InHand : Condition
+public class InZone : Condition
 {
-    Card card;
-    Player player;
+    CardSelector cardSelector;
+    CardZone.ZoneType zoneType;
 
-    public InHand(Card card, Player player)
+    public InZone(CardSelector cardSelector, CardZone.ZoneType zoneType)
     {
-        this.card = card;
-        this.player = player;
+        this.cardSelector = cardSelector;
+        this.zoneType = zoneType;
     }
 
-    public override bool Activate(Card card)
+    public override bool Activate(Card source)
     {
-        return player.IsCardInHand(card);
+        foreach (Card card in cardSelector.Resolve(source))
+        {
+            if (card.zone.zoneType == this.zoneType)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }
 
@@ -219,7 +244,8 @@ public class CardData
 
 public class Card
 {
-    public Player owner;
+    public CardPlayer owner;
+    public CardZone zone;
     CardData cardData;
     
     //base state
@@ -236,7 +262,7 @@ public class Card
     bool canAttack  = false;
     int damage = 0;
 
-    public Card(CardData cardData, Player owner)
+    public Card(CardData cardData, CardPlayer owner)
     {
         this.owner = owner;
         
