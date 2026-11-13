@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net.NetworkInformation;
 using UnityEngine;
 
 public class CardGameManager
@@ -76,7 +77,7 @@ public class RoundManager
 {
     CardPlayer player1;
     CardPlayer player2;
-    CardPlayer activePlayer;
+    public CardPlayer activePlayer;
     
     List<Card> player1Deck;
     List<Card> player2Deck;
@@ -97,33 +98,89 @@ public class RoundManager
     {
         foreach(Card card in player1Deck) card.RegisterTriggers(triggerEventSystem);
         foreach(Card card in player2Deck) card.RegisterTriggers(triggerEventSystem);
-        player1.StartNewRound();
-        player2.StartNewRound();
+        player1.StartNewRound(triggerEventSystem);
+        player2.StartNewRound(triggerEventSystem);
         player1.hand.AddCard(player1Deck);
         player2.hand.AddCard(player2Deck);
         triggerEventSystem.TriggerEvent("RoundStart");
         while (true)
         {
-            triggerEventSystem.TriggerEvent("TurnStart");
-            /*
-            Untap();
-            Upkeep();
-            PreCombat();
-            DeclareAttackers();
-            DeclareBlockers();
-            Damage();
-            PostCombat();
-            Endstep();
             
-            activePlayer = activePlayer.opponent;
-            */
-            triggerEventSystem.TriggerEvent("TurnEnd");
+            for (int i = 0; i < player1Deck.Count; i++)
+            {
+                triggerEventSystem.TriggerEvent("TurnStart");
+                Untap();
+                Upkeep();
+                PreCombat();
+                
+                DeclareAttackers();
+                DeclareBlockers();
+                Damage();
+                
+                Endstep();
+               
+                /*
+                
+                PostCombat();
+                
+                */
+                activePlayer = activePlayer.opponent;
+            
+                triggerEventSystem.TriggerEvent("TurnEnd");
+            }
+            
             break;
         }
         CardPlayer winner = activePlayer;
         foreach(Card card in player1Deck) card.UnregisterTriggers(triggerEventSystem);
         foreach(Card card in player2Deck) card.UnregisterTriggers(triggerEventSystem);
         return winner;
+    }
+
+    private void Untap()
+    {
+        triggerEventSystem.TriggerEvent("Untap", new EffectSource(this));
+        TriggerData triggerData = new TriggerData("", new Untap(new AllMyCardsInPlay()));
+        new Trigger(triggerData, new EffectSource(this)).Activate();
+    }
+
+    private void Upkeep()
+    {
+        triggerEventSystem.TriggerEvent("Upkeep", new EffectSource(this));
+    }
+
+    private void PreCombat()
+    {
+        triggerEventSystem.TriggerEvent("Precombat", new EffectSource(this));
+        TriggerData triggerData = new TriggerData("", new PlayCard(new AnyCardInHand()));
+        new Trigger(triggerData, new EffectSource(this)).Activate();
+        
+    }
+
+    private void DeclareAttackers()
+    {
+        triggerEventSystem.TriggerEvent("DeclareAttackers", new EffectSource(this));
+        TriggerData triggerData = new TriggerData("", new DeclareAttackers(new ChooseAttackers()));
+        new Trigger(triggerData, new EffectSource(this)).Activate();
+    }
+
+    private void DeclareBlockers()
+    {
+        triggerEventSystem.TriggerEvent("DeclareBlockers", new EffectSource(this));
+    }
+
+    private void Damage()
+    {
+        triggerEventSystem.TriggerEvent("Damage", new EffectSource(this));
+        //TODO: real combat
+        
+    }
+
+    private void Endstep()
+    {
+        triggerEventSystem.TriggerEvent("Endstep", new EffectSource(this));
+        TriggerData triggerData = new TriggerData("", new EndstepReset(new AllCardsInPlay()));
+        new Trigger(triggerData, new EffectSource(this)).Activate();
     }
 }
 
@@ -165,7 +222,23 @@ public class TriggerEventSystem
         }
         else
         {
-            Debug.Log(eventName+ " triggered with no listeners");
+            Debug.Log(eventName+ " triggered with 0 listeners");
+        }
+    }
+    
+    public void TriggerEvent(String eventName, EffectSource source)
+    {
+        if (triggers.TryGetValue(eventName, out var list))
+        {
+            Debug.Log(eventName+ " triggered");
+            foreach (Trigger trigger in new List<Trigger>(list))
+            {
+                if(trigger!=null) trigger.Activate(source);
+            }
+        }
+        else
+        {
+            Debug.Log(eventName+ " triggered with 0 listeners");
         }
     }
 }

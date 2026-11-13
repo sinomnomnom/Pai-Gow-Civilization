@@ -8,9 +8,9 @@ public class CardSystemTest : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        TriggerData UpkeepGain3life = new TriggerData("TurnStart",
-            new Conditional(new InZone(new ThisCard(), CardZone.ZoneType.INPLAY), new ChangeLife(new Owner(), 3)));
-        CardData chuddyCard = new CardData("chuddy","this card is a basic 1/1 chud","hmm, I am a chud - chud", 1,1,new List<TriggerData>(){UpkeepGain3life});
+        TriggerData UpkeepGain3life = new TriggerData("Upkeep",
+            new Conditional(new InZone(new ThisCard(), CardZone.ZoneType.INPLAY),new Conditional(new OwnerIsActivePlayer(new ThisCard()),new ChangeLife(new Owner(), 3))));
+        CardData chuddyCard = new CardData("chuddy","this card is a basic 1/1 chud","oops, I am a chud - chud", 1,1,new List<TriggerData>(){UpkeepGain3life});
         List<CardData> collection = new List<CardData>();
         for (int i = 0; i < 12; i++)
         {

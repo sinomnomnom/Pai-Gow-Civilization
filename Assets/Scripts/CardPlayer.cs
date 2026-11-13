@@ -11,13 +11,14 @@ public class CardPlayer
     private int startingLifeTotal = 5;
     List<CardData> collection = new List<CardData>();
     
-    
     int lifeTotal;
     
     public CardZone hand;
     public CardZone inPlay;
     public CardZone graveyard;
     public CardPlayer opponent;
+    
+    public TriggerEventSystem triggerEventSystem;
 
     public CardPlayer(CardPlayerData data)
     {
@@ -58,20 +59,45 @@ public class CardPlayer
         b.opponent = a;
     }
 
-    public void StartNewRound()
+    public void StartNewRound(TriggerEventSystem triggerEventSystem)
     {
         lifeTotal = startingLifeTotal;
-        hand = new CardZone(CardZone.ZoneType.HAND);
-        inPlay = new CardZone(CardZone.ZoneType.INPLAY);
-        graveyard = new CardZone(CardZone.ZoneType.GRAVEYARD);
+        hand = new CardZone(CardZone.ZoneType.HAND, triggerEventSystem);
+        inPlay = new CardZone(CardZone.ZoneType.INPLAY, triggerEventSystem);
+        graveyard = new CardZone(CardZone.ZoneType.GRAVEYARD, triggerEventSystem);
+        this.triggerEventSystem = triggerEventSystem;
+    }
+
+    public void Untap()
+    {
+        foreach (Card card in inPlay.cards)
+        {
+            card.Untap();
+        }
     }
     
     public void ChangeLife(int delta)
     {
         lifeTotal += delta;
+        if(lifeTotal <= 0)  triggerEventSystem.TriggerEvent("PlayerDeath", new EffectSource(this));
+        else
+        {
+            if (delta > 0) triggerEventSystem.TriggerEvent("GainLife", new EffectSource(this));
+            if (delta < 0) triggerEventSystem.TriggerEvent("LoseLife", new EffectSource(this));
+        }
+        Debug.Log("new lifeTotal: "  + lifeTotal);
     }
 
-    public Ability Choose(String question, List<String> options, List<Ability> results, Card card)
+    public void PlayCard(List<Card> cards)
+    {
+        foreach (Card card in cards)
+        {
+            triggerEventSystem.TriggerEvent("PlayCard", new EffectSource(this));
+            CardZone.MoveCard(card,inPlay);
+        }
+    }
+
+    public Ability Choose(String question, List<String> options, List<Ability> results, EffectSource source)
     {
         //TODO : let players actually choose
         return results[0];
@@ -83,6 +109,20 @@ public class CardPlayer
         List<Card> options = inPlay.cards.Concat(opponent.inPlay.cards).ToList();
         if (options.Count<1) return null;
         return options[0];
+    }
+    
+    public Card ChooseCardInHand()
+    {
+        //todo: real choice
+        List<Card> options = hand.cards;
+        if (options.Count<1) return null;
+        return options[0];
+    }
+
+    public List<Card> ChooseCardsFromList(List<Card> cards)
+    {
+        //todo: real choice
+        return cards;
     }
 }
 

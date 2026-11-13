@@ -4,13 +4,15 @@ using UnityEngine;
 public class CardZone
 {
     public enum ZoneType {HAND, GRAVEYARD, INPLAY}
-    public ZoneType zoneType;
-    
-    public readonly List<Card> cards = new List<Card>();
 
-    public CardZone(ZoneType type)
+    public ZoneType zoneType;
+    public readonly List<Card> cards = new List<Card>();
+    private TriggerEventSystem  triggerEventSystem;
+
+    public CardZone(ZoneType zoneType, TriggerEventSystem triggerEventSystem)
     {
-        zoneType = type;
+        this.zoneType =  zoneType;
+        this.triggerEventSystem = triggerEventSystem;
     }
 
     public static void MoveCard(Card card, CardZone to)
@@ -28,6 +30,7 @@ public class CardZone
     {
         card.zone = this;
         cards.Add(card);
+        triggerEventSystem.TriggerEvent("CardEntered", new EffectSource(card, to: this));
     }
 
     public void AddCard(List<Card> card)
@@ -42,5 +45,6 @@ public class CardZone
     public void RemoveCard(Card card)
     {
         cards.Remove(card);
+        triggerEventSystem.TriggerEvent("CardExited", new EffectSource(from: this, card));
     }
 }

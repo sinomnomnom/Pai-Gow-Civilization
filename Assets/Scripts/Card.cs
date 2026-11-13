@@ -1,15 +1,58 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
+using UnityEngine.UI;
+
+public class EffectSource
+{
+    public Card card;
+    public CardPlayer player;
+    public CardZone from, to;
+    public RoundManager roundManager;
+    public Card triggeringOn;
+
+    public EffectSource(Card card)
+    {
+        this.card = card;
+    }
+
+    public EffectSource(Card card, CardZone to)
+    {
+        this.card = card;
+        this.to = to;
+    }
+    public EffectSource(CardZone from, Card card)
+    {
+        this.card = card;
+        this.from = from;
+    }
+
+    public EffectSource(CardPlayer player)
+    {
+        this.player = player;
+    }
+
+    public EffectSource(RoundManager roundManager)
+    {
+        this.roundManager = roundManager;
+    }
+
+    public CardPlayer GetPlayer()
+    {
+        return player ?? card?.owner ?? roundManager?.activePlayer;
+    }
+
+}
 
 public class Trigger
 {
-    private Card source;
+    private EffectSource source;
     TriggerData data;
     
-    public Trigger(TriggerData triggerData, Card card)
+    public Trigger(TriggerData triggerData, EffectSource source)
     {
-        this.source = card;
+        this.source = source;
         this.data = triggerData;
     }
 
@@ -27,58 +70,153 @@ public class Trigger
     {
         data.ability.Activate(source);
     }
+
+    public void Activate(EffectSource source)
+    {
+        source.triggeringOn = this.source.card;
+        data.ability.Activate(source);
+    }
 }
 
 public abstract class CardSelector
 {
-    abstract public List<Card> Resolve(Card card);
+    abstract public List<Card> Resolve(EffectSource source);
 }
 
 public class ThisCard : CardSelector
 {
-    public override List<Card> Resolve(Card card)
+    public override List<Card> Resolve(EffectSource source)
     {
-        return new List<Card>() { card };
+        if (source.triggeringOn != null)
+        {
+            return new List<Card>() { source.triggeringOn };
+        }
+        if (source.card !=null)
+        {
+            return new List<Card>() { source.card };
+        }
+        else
+        {
+            Debug.Log("ThisCard selector effect did not come from a card");
+            return new List<Card>();
+        }
+        
     }
 }
 
 public class AnyCardInPlay : CardSelector
 {
-    public override List<Card> Resolve(Card card)
+    public override List<Card> Resolve(EffectSource source)
     {
-        return new List<Card>() { card.owner.ChooseCardInPlay() };
+        CardPlayer player = source.GetPlayer();
+
+        if (player == null)
+        {
+            Debug.Log("no valid player");
+            return new List<Card>();
+        }
+
+        return new List<Card> { player.ChooseCardInPlay() };
+    }
+}
+
+public class AllCardsInPlay : CardSelector
+{
+    public override List<Card> Resolve(EffectSource source)
+    {
+        CardPlayer player = source.GetPlayer();
+
+        if (player == null)
+        {
+            Debug.Log("no valid player");
+            return new List<Card>();
+        }
+
+        return player.inPlay.cards.Concat(player.opponent.inPlay.cards).ToList();
+    }
+}
+
+public class AllMyCardsInPlay : CardSelector
+{
+    public override List<Card> Resolve(EffectSource source)
+    {
+        CardPlayer player = source.GetPlayer();
+
+        if (player == null)
+        {
+            Debug.Log("no valid player");
+            return new List<Card>();
+        }
+
+        return player.inPlay.cards;
+    }
+}
+
+public class AnyCardInHand : CardSelector
+{
+    public override List<Card> Resolve(EffectSource source)
+    {
+        CardPlayer player = source.GetPlayer();
+
+        if (player == null)
+        {
+            Debug.Log("no valid player");
+            return new List<Card>();
+        }
+
+        return new List<Card> { player.ChooseCardInHand() };
+    }
+}
+
+public class ChooseAttackers : CardSelector
+{
+    public override List<Card> Resolve(EffectSource source)
+    {
+        CardPlayer player = source.GetPlayer();
+
+        if (player == null)
+        {
+            Debug.Log("Selector effect has no valid player");
+            return new List<Card>();
+        }
+        List<Card> options = new List<Card>();
+        foreach (Card card in player.inPlay.cards)
+        {
+            if (card.canAttack) options.Add(card);
+        }
+        return player.ChooseCardsFromList(options);
     }
 }
 
 public abstract class PlayerSelector
 {
-    abstract public List<CardPlayer> Resolve(Card source);
+    abstract public List<CardPlayer> Resolve(EffectSource source);
 }
 
 public class Opponent : PlayerSelector
 {
-    public override List<CardPlayer> Resolve(Card source)
+    public override List<CardPlayer> Resolve(EffectSource source)
     {
-        return new List<CardPlayer>() {source.owner.opponent};
+        return new List<CardPlayer>() {source.GetPlayer().opponent};
     }
 }
 
 public class Owner : PlayerSelector
 {
-    public override List<CardPlayer> Resolve(Card source)
+    public override List<CardPlayer> Resolve(EffectSource source)
     {
-        return new List<CardPlayer>(){source.owner};
+        return new List<CardPlayer>(){source.GetPlayer()};
     }
 }
 
 public abstract class Ability
 {
-    abstract public void Activate(Card source);
+    abstract public void Activate(EffectSource source);
 }
 
 public abstract class Condition
 {
-    abstract public bool Activate(Card source);
+    abstract public bool Activate(EffectSource source);
 }
 
 public class Choice : Ability
@@ -87,16 +225,16 @@ public class Choice : Ability
     private List<String> options;
     private List<Ability> results;
 
-    public Choice(String question, List<String> options, List<Ability> results, Card source)
+    public Choice(String question, List<String> options, List<Ability> results)
     {
         this.question = question;
         this.options = options;
         this.results = results;
     }
 
-    public override void Activate(Card card)
+    public override void Activate(EffectSource source)
     {
-        card.owner.Choose(question, options, results, card).Activate(card);
+        source.GetPlayer().Choose(question, options, results, source).Activate(source);
     }
 }
 
@@ -111,12 +249,26 @@ public class ChangeLife : Ability
         this.selector = selector;
     }
 
-    public override void Activate(Card source)
+    public override void Activate(EffectSource source)
     {
         foreach (CardPlayer player in selector.Resolve(source))
         {
             player.ChangeLife(delta);
         }
+    }
+}
+
+public class PlayCard : Ability
+{
+    CardSelector selector;
+    public PlayCard(CardSelector selector)
+    {
+        this.selector = selector;
+    }
+
+    public override void Activate(EffectSource source)
+    {
+        source.GetPlayer().PlayCard(selector.Resolve(source));
     }
 }
 
@@ -128,7 +280,7 @@ public class Sequence : Ability
         this.abilities = abilities;
     }
 
-    public override void Activate(Card source)
+    public override void Activate(EffectSource source)
     {
         foreach (Ability ability in abilities)
         {
@@ -145,11 +297,79 @@ public class Tap : Ability
     {
         this.selector = selector;
     }
-    public override void Activate(Card source)
+    public override void Activate(EffectSource source)
     {
         foreach (Card card in selector.Resolve(source))
         {
             card.Tap();
+        }
+    }
+}
+
+public class DeclareAttackers : Ability
+{
+    CardSelector selector;
+    public DeclareAttackers(CardSelector selector)
+    {
+        this.selector = selector;
+    }
+
+    public override void Activate(EffectSource source)
+    {
+        foreach (Card card in selector.Resolve(source))
+        {
+            card.DeclareAttacker();
+        }
+    }
+}
+
+public class EndstepReset : Ability
+{
+    CardSelector selector;
+    public EndstepReset(CardSelector selector)
+    {
+        this.selector = selector;
+    }
+
+    public override void Activate(EffectSource source)
+    {
+        foreach (Card card in selector.Resolve(source))
+        {
+            card.Endstep();
+        }
+    }
+}
+
+public class Heal : Ability
+{
+    CardSelector selector;
+    public Heal(CardSelector selector)
+    {
+        this.selector = selector;
+    }
+
+    public override void Activate(EffectSource source)
+    {
+        foreach (Card card in selector.Resolve(source))
+        {
+            card.Heal();
+        }
+    }
+}
+
+public class Untap : Ability
+{
+    CardSelector selector;
+
+    public Untap(CardSelector selector)
+    {
+        this.selector = selector;
+    }
+    public override void Activate(EffectSource source)
+    {
+        foreach (Card card in selector.Resolve(source))
+        {
+            card.Untap();
         }
     }
 }
@@ -160,7 +380,7 @@ public class Not : Condition
     public Not(Condition test)
     {this.test = test;}
 
-    public override bool Activate(Card source)
+    public override bool Activate(EffectSource source)
     {
         return !test.Activate(source);
     }
@@ -177,11 +397,33 @@ public class InZone : Condition
         this.zoneType = zoneType;
     }
 
-    public override bool Activate(Card source)
+    public override bool Activate(EffectSource source)
     {
         foreach (Card card in cardSelector.Resolve(source))
         {
             if (card.zone.zoneType == this.zoneType)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+public class OwnerIsActivePlayer : Condition
+{
+    CardSelector cardSelector;
+
+    public OwnerIsActivePlayer(CardSelector cardSelector)
+    {
+        this.cardSelector = cardSelector;
+    }
+
+    public override bool Activate(EffectSource source)
+    {
+        foreach (Card card in cardSelector.Resolve(source))
+        {
+            if (card.owner == source.GetPlayer())
             {
                 return true;
             }
@@ -201,7 +443,7 @@ public class Conditional : Ability
         this.ifTrue = ifTrue;
     }
     
-    public override void Activate(Card card)
+    public override void Activate(EffectSource card)
     {
         if (test.Activate(card))
         {
@@ -221,24 +463,31 @@ public class TriggerData
     }
 }
 
+public enum Keywords { FLASH, HASTE, FLYING}
+
 public class CardData
 {
+    public readonly Sprite art;
     public readonly String name;
     public readonly String description;
     public readonly String flavorText;
     public readonly int power;
     public readonly int toughness;
     
+    public readonly List<Keywords> keywords;
+    
     public readonly List<TriggerData> abilities;
     
-    public CardData(String name, String description, String flavorText, int power, int toughness, List<TriggerData> abilities)
+    public CardData(String name, String description, String flavorText, int power, int toughness, List<TriggerData> abilities = null, List<Keywords>  keywords = null, Sprite art = null)
     {
+        this.art = art;
         this.name = name;
         this.description = description;
         this.flavorText = flavorText;
         this.power = power;
         this.toughness = toughness;
         this.abilities = abilities;
+        this.keywords = keywords;
     }
 }
 
@@ -246,21 +495,24 @@ public class Card
 {
     public CardPlayer owner;
     public CardZone zone;
-    CardData cardData;
+    public CardData cardData;
+    TriggerEventSystem triggerEventSystem;
     
     //base state
-    String name;
-    String description;
-    String flavorText;
-    int power;
-    int toughness;
-    
-    List<Trigger> abilities;
+    public readonly Sprite art;
+    public readonly String name;
+    public readonly String description;
+    public readonly String flavorText;
+    public readonly int power;
+    public readonly int toughness;
+    public readonly List<Keywords> keywords;
+    public readonly List<Trigger> abilities;
     
     //state
     bool tapped = false;
-    bool canAttack  = false;
+    public bool canAttack  = false;
     int damage = 0;
+    bool declaredAttacker = false;
 
     public Card(CardData cardData, CardPlayer owner)
     {
@@ -273,31 +525,70 @@ public class Card
         flavorText = cardData.flavorText;
         power = cardData.power;
         toughness = cardData.toughness;
+        keywords = cardData.keywords;
+        this.art = cardData.art;
         
         abilities = new List<Trigger>();
         foreach(TriggerData data in cardData.abilities)
         {
-            abilities.Add(new Trigger(data, this));
+            abilities.Add(new Trigger(data, new EffectSource(this)));
         }
     }
     
     public void Tap()
     {
         tapped = true;
+        triggerEventSystem?.TriggerEvent("CardTap", new EffectSource(this));
     }
 
     public void Untap()
     {
         tapped = false;
+        triggerEventSystem?.TriggerEvent("CardUntap", new EffectSource(this));
+    }
+
+    public void Endstep()
+    {
+        Heal();
+        canAttack = true;
+    }
+
+    public void Heal()
+    {
+        damage = 0;
+    }
+
+    public void TakeDamage(int damage)
+    {
+        this.damage += damage;
+        if (this.damage > this.toughness)
+        {
+            Die();
+        }
+    }
+
+    public void Die()
+    {
+        CardZone.MoveCard(this, owner.graveyard);
+        triggerEventSystem.TriggerEvent("CardDie", new EffectSource(this));
+    }
+
+    public void DeclareAttacker()
+    {
+        declaredAttacker = true;
+        triggerEventSystem?.TriggerEvent("DeclaredAttacker", new EffectSource(this));
+        Tap();
     }
 
     public void RegisterTriggers(TriggerEventSystem triggerEventSystem)
     {
+        this.triggerEventSystem =  triggerEventSystem;
         foreach(Trigger trigger in abilities) trigger.AddTrigger(triggerEventSystem);
     }
 
     public void UnregisterTriggers(TriggerEventSystem triggerEventSystem)
     {
+        this.triggerEventSystem = null;
         foreach(Trigger trigger in abilities) trigger.RemoveTrigger(triggerEventSystem);
     }
 }
