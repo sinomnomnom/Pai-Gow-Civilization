@@ -152,7 +152,7 @@ public class RoundManager
     private void PreCombat()
     {
         triggerEventSystem.TriggerEvent("Precombat", new EffectSource(this));
-        TriggerData triggerData = new TriggerData("", new PlayCard(new AnyCardInHand()));
+        TriggerData triggerData = new TriggerData("", new PlayCard(new AnyCardInMyHand()));
         new Trigger(triggerData, new EffectSource(this)).Activate();
         
     }
@@ -181,64 +181,5 @@ public class RoundManager
         triggerEventSystem.TriggerEvent("Endstep", new EffectSource(this));
         TriggerData triggerData = new TriggerData("", new EndstepReset(new AllCardsInPlay()));
         new Trigger(triggerData, new EffectSource(this)).Activate();
-    }
-}
-
-public class TriggerEventSystem
-{
-    Dictionary<String, List<Trigger>> triggers;
-    
-    public TriggerEventSystem()
-    {
-        triggers = new Dictionary<string, List<Trigger>>();
-    }
-
-    public void AddTrigger(String eventName, Trigger trigger)
-    {
-        if (!triggers.ContainsKey(eventName))
-        {
-            triggers.Add(eventName, new List<Trigger>());
-        }
-        triggers[eventName].Add(trigger);
-    }
-
-    public void RemoveTrigger(String eventName, Trigger trigger)
-    {
-        if (triggers.ContainsKey(eventName))
-        {
-            triggers[eventName].Remove(trigger);
-        }
-    }
-
-    public void TriggerEvent(String eventName)
-    {
-        if (triggers.TryGetValue(eventName, out var list))
-        {
-            Debug.Log(eventName+ " triggered");
-            foreach (Trigger trigger in new List<Trigger>(list))
-            {
-                if(trigger!=null) trigger.Activate();
-            }
-        }
-        else
-        {
-            Debug.Log(eventName+ " triggered with 0 listeners");
-        }
-    }
-    
-    public void TriggerEvent(String eventName, EffectSource source)
-    {
-        if (triggers.TryGetValue(eventName, out var list))
-        {
-            Debug.Log(eventName+ " triggered");
-            foreach (Trigger trigger in new List<Trigger>(list))
-            {
-                if(trigger!=null) trigger.Activate(source);
-            }
-        }
-        else
-        {
-            Debug.Log(eventName+ " triggered with 0 listeners");
-        }
     }
 }
