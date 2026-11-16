@@ -9,6 +9,8 @@ public class PlayerController : MonoBehaviour, Controls.IPlayerActions
     private Controls _controls;
     private Vector2 _moveInput;
 
+    [SerializeField] private Rigidbody _rb;
+
     private void Awake()
     {
         _controls = new Controls();
