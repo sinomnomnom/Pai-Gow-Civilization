@@ -51,10 +51,11 @@ public class CameraController : MonoBehaviour, Controls.IPlayerActions
     {
         if (character == null) return;
 
-        Vector2 md = Vector2.Scale(_lookInput, new Vector2(sensitivity / 10, sensitivity / 10));
+        Vector2 md = _lookInput * (sensitivity / 10);
 
-        smoothV.x = Mathf.Lerp(smoothV.x, md.x, 1f / smoothing);
-        smoothV.y = Mathf.Lerp(smoothV.y, md.y, 1f / smoothing);
+        float smoothFactor = Mathf.Max(1f, smoothing);
+        smoothV.x = Mathf.Lerp(smoothV.x, md.x, 1f / smoothFactor);
+        smoothV.y = Mathf.Lerp(smoothV.y, md.y, 1f / smoothFactor);
 
         mouseLook += smoothV;
 
