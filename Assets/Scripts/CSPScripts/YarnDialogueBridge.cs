@@ -1,16 +1,35 @@
 using UnityEngine;
+using Yarn;
+using Yarn.Unity;
 
 public class YarnDialogueBridge : MonoBehaviour
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    [SerializeField] private DialogueRunner dialogueRunner;
+
+    private void OnEnable()
     {
-        
+        //listens for external requests for conversation start
+        DialogueEvents.OnDialogueRequested += StartConversation;
+
+        //forwards yarnspinners built in events to C# stuff
+        dialogueRunner.onDialogueStart.AddListener(DialogueEvents.NotifyDialogueStart);
+        dialogueRunner.onDialogueComplete.AddListener(DialogueEvents.NotifyDialogueEnd);
     }
 
-    // Update is called once per frame
-    void Update()
+    private void StartConversation(string nodeName)
     {
-        
+        if (!dialogueRunner.IsDialogueRunning) dialogueRunner.StartDialogue(nodeName);
+    }
+
+    [YarnCommand("start_quest")]
+    public static void CommandStartQuest(string questID)
+    {
+        DialogueEvents.TriggerQuest(questID);
+    }
+
+    [YarnCommand("give_item")]
+    public static void CommandGiveItem(string itemID, int amount)
+    {
+        DialogueEvents.GiveItem(itemID, amount);
     }
 }
