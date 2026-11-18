@@ -18,6 +18,7 @@ public class YarnDialogueBridge : MonoBehaviour
 
     private void StartConversation(string nodeName)
     {
+        Debug.Log(nodeName);
         if (!dialogueRunner.IsDialogueRunning) dialogueRunner.StartDialogue(nodeName);
     }
 
