@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
 
 public class TriggerEventSystem
@@ -28,14 +29,14 @@ public class TriggerEventSystem
         }
     }
 
-    public void TriggerEvent(String eventName)
+    public async Task TriggerEvent(String eventName)
     {
         if (triggers.TryGetValue(eventName, out var list))
         {
             Debug.Log(eventName+ " triggered");
             foreach (Trigger trigger in new List<Trigger>(list))
             {
-                if(trigger!=null) trigger.Activate();
+                if(trigger!=null) await trigger.Activate();
             }
         }
         else
@@ -44,14 +45,14 @@ public class TriggerEventSystem
         }
     }
     
-    public void TriggerEvent(String eventName, EffectSource source)
+    public async Task TriggerEvent(String eventName, EffectSource source)
     {
         if (triggers.TryGetValue(eventName, out var list))
         {
             Debug.Log(eventName+ " triggered");
             foreach (Trigger trigger in new List<Trigger>(list))
             {
-                if(trigger!=null) trigger.Activate(source);
+                if(trigger!=null) await trigger.Activate(source);
             }
         }
         else
@@ -97,7 +98,7 @@ public class EffectSource
 
     public CardPlayer GetPlayer()
     {
-        return player ?? card?.owner ?? roundManager?.activePlayer;
+        return player ?? card?.state.owner ?? roundManager?.activePlayer;
     }
 }
 
@@ -133,14 +134,14 @@ public class Trigger
         triggerEventSystem.RemoveTrigger(data.eventName, this);
     }
 
-    public void Activate()
+    public async Task Activate()
     {
-        data.ability.Activate(source);
+        await data.ability.Activate(source);
     }
 
-    public void Activate(EffectSource source)
+    public async Task Activate(EffectSource source)
     {
         source.triggeringOn = this.source.card;
-        data.ability.Activate(source);
+        await data.ability.Activate(source);
     }
 }

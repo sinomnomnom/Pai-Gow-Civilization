@@ -1,15 +1,16 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using UnityEngine;
 
 public abstract class CardSelector
 {
-    abstract public List<Card> Resolve(EffectSource source);
+    abstract public Task<List<Card>> Resolve(EffectSource source);
 }
 
 public class ThisCard : CardSelector
 {
-    public override List<Card> Resolve(EffectSource source)
+    public override async Task<List<Card>> Resolve(EffectSource source)
     {
         if (source.triggeringOn != null)
         {
@@ -30,7 +31,7 @@ public class ThisCard : CardSelector
 
 public class AnyCardInPlay : CardSelector
 {
-    public override List<Card> Resolve(EffectSource source)
+    public override async Task<List<Card>> Resolve(EffectSource source)
     {
         CardPlayer player = source.GetPlayer();
 
@@ -40,13 +41,13 @@ public class AnyCardInPlay : CardSelector
             return new List<Card>();
         }
 
-        return new List<Card> { player.ChooseCardInPlay() };
+        return new List<Card> { await player.ChooseCardInPlay() };
     }
 }
 
 public class AllCardsInPlay : CardSelector
 {
-    public override List<Card> Resolve(EffectSource source)
+    public override async Task<List<Card>> Resolve(EffectSource source)
     {
         CardPlayer player = source.GetPlayer();
 
@@ -62,7 +63,7 @@ public class AllCardsInPlay : CardSelector
 
 public class AllMyCardsInPlay : CardSelector
 {
-    public override List<Card> Resolve(EffectSource source)
+    public override async Task<List<Card>> Resolve(EffectSource source)
     {
         CardPlayer player = source.GetPlayer();
 
@@ -78,7 +79,7 @@ public class AllMyCardsInPlay : CardSelector
 
 public class AnyCardInMyHand : CardSelector
 {
-    public override List<Card> Resolve(EffectSource source)
+    public override async Task<List<Card>> Resolve(EffectSource source)
     {
         CardPlayer player = source.GetPlayer();
 
@@ -88,13 +89,13 @@ public class AnyCardInMyHand : CardSelector
             return new List<Card>();
         }
 
-        return new List<Card> { player.ChooseCardInHand() };
+        return new List<Card> { await player.ChooseCardInHand() };
     }
 }
 
 public class ChooseAttackers : CardSelector
 {
-    public override List<Card> Resolve(EffectSource source)
+    public override async Task<List<Card>> Resolve(EffectSource source)
     {
         CardPlayer player = source.GetPlayer();
 
@@ -106,9 +107,9 @@ public class ChooseAttackers : CardSelector
         List<Card> options = new List<Card>();
         foreach (Card card in player.inPlay.cards)
         {
-            if (card.canAttack) options.Add(card);
+            if (!card.state.summoningSick && !card.state.tapped) options.Add(card);
         }
-        return player.ChooseCardsFromList(options);
+        return await player.ChooseCardsFromList(options);
     }
 }
 

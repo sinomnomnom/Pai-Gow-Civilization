@@ -1,15 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
 
 public abstract class Ability
 {
-    abstract public void Activate(EffectSource source);
+    abstract public Task Activate(EffectSource source);
 }
 
 public abstract class Condition
 {
-    abstract public bool Activate(EffectSource source);
+    abstract public Task<bool> Activate(EffectSource source);
 }
 
 public class Choice : Ability
@@ -25,9 +26,9 @@ public class Choice : Ability
         this.results = results;
     }
 
-    public override void Activate(EffectSource source)
+    public override async Task Activate(EffectSource source)
     {
-        source.GetPlayer().Choose(question, options, results, source).Activate(source);
+        await source.GetPlayer().Choose(question, options, results, source).Result.Activate(source);
     }
 }
 
@@ -42,7 +43,7 @@ public class ChangeLife : Ability
         this.selector = selector;
     }
 
-    public override void Activate(EffectSource source)
+    public override async Task Activate(EffectSource source)
     {
         foreach (CardPlayer player in selector.Resolve(source))
         {
@@ -59,9 +60,9 @@ public class PlayCard : Ability
         this.selector = selector;
     }
 
-    public override void Activate(EffectSource source)
+    public override async Task Activate(EffectSource source)
     {
-        source.GetPlayer().PlayCard(selector.Resolve(source));
+        await source.GetPlayer().PlayCard(await selector.Resolve(source));
     }
 }
 
@@ -73,11 +74,11 @@ public class Sequence : Ability
         this.abilities = abilities;
     }
 
-    public override void Activate(EffectSource source)
+    public override async Task Activate(EffectSource source)
     {
         foreach (Ability ability in abilities)
         {
-            ability.Activate(source);
+            await ability.Activate(source);
         }
     }
 }
@@ -90,9 +91,9 @@ public class Tap : Ability
     {
         this.selector = selector;
     }
-    public override void Activate(EffectSource source)
+    public override async Task Activate(EffectSource source)
     {
-        foreach (Card card in selector.Resolve(source))
+        foreach (Card card in await selector.Resolve(source))
         {
             card.Tap();
         }
@@ -107,9 +108,9 @@ public class DeclareAttackers : Ability
         this.selector = selector;
     }
 
-    public override void Activate(EffectSource source)
+    public override async Task Activate(EffectSource source)
     {
-        foreach (Card card in selector.Resolve(source))
+        foreach (Card card in await selector.Resolve(source))
         {
             card.DeclareAttacker();
         }
@@ -124,9 +125,9 @@ public class EndstepReset : Ability
         this.selector = selector;
     }
 
-    public override void Activate(EffectSource source)
+    public override async Task Activate(EffectSource source)
     {
-        foreach (Card card in selector.Resolve(source))
+        foreach (Card card in await selector.Resolve(source))
         {
             card.Endstep();
         }
@@ -141,9 +142,9 @@ public class Heal : Ability
         this.selector = selector;
     }
 
-    public override void Activate(EffectSource source)
+    public override async Task Activate(EffectSource source)
     {
-        foreach (Card card in selector.Resolve(source))
+        foreach (Card card in await selector.Resolve(source))
         {
             card.Heal();
         }
@@ -158,9 +159,9 @@ public class Untap : Ability
     {
         this.selector = selector;
     }
-    public override void Activate(EffectSource source)
+    public override async Task Activate(EffectSource source)
     {
-        foreach (Card card in selector.Resolve(source))
+        foreach (Card card in await selector.Resolve(source))
         {
             card.Untap();
         }
@@ -173,9 +174,10 @@ public class Not : Condition
     public Not(Condition test)
     {this.test = test;}
 
-    public override bool Activate(EffectSource source)
+    public override async Task<bool> Activate(EffectSource source)
     {
-        return !test.Activate(source);
+        bool result = await (test.Activate(source));
+        return !result;
     }
 }
 
@@ -190,11 +192,11 @@ public class InZone : Condition
         this.zoneType = zoneType;
     }
 
-    public override bool Activate(EffectSource source)
+    public override async Task<bool> Activate(EffectSource source)
     {
-        foreach (Card card in cardSelector.Resolve(source))
+        foreach (Card card in await cardSelector.Resolve(source))
         {
-            if (card.zone.zoneType == this.zoneType)
+            if (card.state.zone.zoneType == this.zoneType)
             {
                 return true;
             }
@@ -212,11 +214,11 @@ public class OwnerIsActivePlayer : Condition
         this.cardSelector = cardSelector;
     }
 
-    public override bool Activate(EffectSource source)
+    public override async Task<bool> Activate(EffectSource source)
     {
-        foreach (Card card in cardSelector.Resolve(source))
+        foreach (Card card in await cardSelector.Resolve(source))
         {
-            if (card.owner == source.GetPlayer())
+            if (card.state.owner == source.GetPlayer())
             {
                 return true;
             }
@@ -236,11 +238,11 @@ public class Conditional : Ability
         this.ifTrue = ifTrue;
     }
     
-    public override void Activate(EffectSource card)
+    public override async Task Activate(EffectSource card)
     {
-        if (test.Activate(card))
+        if (await test.Activate(card))
         {
-            ifTrue.Activate(card);
+            await ifTrue.Activate(card);
         }
     }
 }

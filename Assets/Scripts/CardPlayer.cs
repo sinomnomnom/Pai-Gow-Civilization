@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Android;
 
@@ -27,30 +28,31 @@ public class CardPlayer
         startingLifeTotal = data.startingLifeTotal;
     }
 
-    public Queue<List<Card>> CreateRandomDecks(int numDecks, int cardsPerDeck)
+    public async Task<Queue<List<CardData>>> CreateRandomDecks(int numDecks, int cardsPerDeck)
     {
         if (numDecks * cardsPerDeck > collection.Count) Debug.Log("not enough cards to make decks!");
         
         List<CardData> shuffled = new List<CardData>(collection);
         shuffled = shuffled.OrderBy(i => Guid.NewGuid()).ToList();
         
-        Queue<List<Card>> decks = new Queue<List<Card>>();
+        Queue<List<CardData>> decks = new Queue<List<CardData>>();
         for (int i = 0; i < numDecks; i++)
         {
-            List<Card> deck = new List<Card>(cardsPerDeck);
+            List<CardData> deck = new List<CardData>(cardsPerDeck);
             for (int j = 0; j < cardsPerDeck; j++)
             {
-                deck.Add(new Card(shuffled[i * cardsPerDeck + j], this));
+                deck.Add(shuffled[i * cardsPerDeck + j]);
             }
             decks.Enqueue(deck);
         }
+        await Task.Delay(3000);
         return decks;
     }
 
-    public Queue<List<Card>> CreateDecks(int numDecks, int cardsPerDeck)
+    public async Task<Queue<List<CardData>>> CreateDecks(int numDecks, int cardsPerDeck)
     {
         //TODO: make real choices
-        return CreateRandomDecks(numDecks, cardsPerDeck);
+        return await CreateRandomDecks(numDecks, cardsPerDeck);
     }
     
     public static void SetOpponents(CardPlayer a, CardPlayer b)
@@ -62,9 +64,6 @@ public class CardPlayer
     public void StartNewRound(TriggerEventSystem triggerEventSystem)
     {
         lifeTotal = startingLifeTotal;
-        hand = new CardZone(CardZone.ZoneType.HAND, triggerEventSystem);
-        inPlay = new CardZone(CardZone.ZoneType.INPLAY, triggerEventSystem);
-        graveyard = new CardZone(CardZone.ZoneType.GRAVEYARD, triggerEventSystem);
         this.triggerEventSystem = triggerEventSystem;
     }
 
@@ -76,52 +75,56 @@ public class CardPlayer
         }
     }
     
-    public void ChangeLife(int delta)
+    public async Task ChangeLife(int delta)
     {
         lifeTotal += delta;
-        if(lifeTotal <= 0)  triggerEventSystem.TriggerEvent("PlayerDeath", new EffectSource(this));
+        if(lifeTotal <= 0)  await triggerEventSystem.TriggerEvent("PlayerDeath", new EffectSource(this));
         else
         {
-            if (delta > 0) triggerEventSystem.TriggerEvent("GainLife", new EffectSource(this));
-            if (delta < 0) triggerEventSystem.TriggerEvent("LoseLife", new EffectSource(this));
+            if (delta > 0) await triggerEventSystem.TriggerEvent("GainLife", new EffectSource(this));
+            if (delta < 0) await triggerEventSystem.TriggerEvent("LoseLife", new EffectSource(this));
         }
         Debug.Log("new lifeTotal: "  + lifeTotal);
     }
 
-    public void PlayCard(List<Card> cards)
+    public async Task PlayCard(List<Card> cards)
     {
         foreach (Card card in cards)
         {
-            triggerEventSystem.TriggerEvent("PlayCard", new EffectSource(this));
+            await triggerEventSystem.TriggerEvent("PlayCard", new EffectSource(this));
             CardZone.MoveCard(card,inPlay);
         }
     }
 
-    public Ability Choose(String question, List<String> options, List<Ability> results, EffectSource source)
+    public async Task<Ability> Choose(String question, List<String> options, List<Ability> results, EffectSource source)
     {
         //TODO : let players actually choose
+        await Task.Delay(1000);
         return results[0];
     }
 
-    public Card ChooseCardInPlay()
+    public async Task<Card> ChooseCardInPlay()
     {
         //todo: real choice
         List<Card> options = inPlay.cards.Concat(opponent.inPlay.cards).ToList();
+        await Task.Delay(1000);
         if (options.Count<1) return null;
         return options[0];
     }
     
-    public Card ChooseCardInHand()
+    public async Task<Card> ChooseCardInHand()
     {
         //todo: real choice
         List<Card> options = hand.cards;
+        await Task.Delay(1000);
         if (options.Count<1) return null;
         return options[0];
     }
 
-    public List<Card> ChooseCardsFromList(List<Card> cards)
+    public async Task<List<Card>> ChooseCardsFromList(List<Card> cards)
     {
         //todo: real choice
+        await Task.Delay(1000);
         return cards;
     }
 }

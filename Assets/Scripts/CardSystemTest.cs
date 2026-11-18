@@ -1,9 +1,11 @@
 using System.Collections.Generic;
 using System.Net.NetworkInformation;
+using System.Threading.Tasks;
 using UnityEngine;
 
 public class CardSystemTest : MonoBehaviour
 {
+    public PlayingAreaVisual playingArea;
     public CardGameManager cardGameManager;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
@@ -20,7 +22,14 @@ public class CardSystemTest : MonoBehaviour
         CardPlayerData playerData2 = new CardPlayerData(collection, "chuddy2");
         CardPlayer player1 = new CardPlayer(playerData);
         CardPlayer player2 = new CardPlayer(playerData2);
-        cardGameManager = new CardGameManager(player1, player2);
+        cardGameManager = new CardGameManager(player1, player2,playingArea);
+        StartTest();
+
+    }
+    
+    async Task StartTest()
+    {
+        await cardGameManager.StartGame();
     }
 
     // Update is called once per frame

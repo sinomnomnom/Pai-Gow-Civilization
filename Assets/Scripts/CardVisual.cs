@@ -11,34 +11,58 @@ public class CardVisual : MonoBehaviour
     public TextMeshProUGUI cardName;
     public TextMeshProUGUI cardDescription;
     public TextMeshProUGUI stats;
+
+    public Vector3 basePos;
+    public Quaternion baseRot;
+    
+    public CardZone currentZone;
     
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        CardPlayer player = new CardPlayer(new CardPlayerData(new List<CardData>(),"chud_player"));
-        TriggerData UpkeepGain3life = new TriggerData("Upkeep",
-            new Conditional(new InZone(new ThisCard(), CardZone.ZoneType.INPLAY), new ChangeLife(new Owner(), 3)));
-        CardData chuddyCard = new CardData("chuddy","this card is a basic 1/1 chud","oops, I am a chud - chud", 1,1,new List<TriggerData>(){UpkeepGain3life});
-        card = new Card(chuddyCard,player);
-        SetStats();
+        
     }
 
-    void SetCard(Card card)
+    public void SetCard(Card card)
     {
         this.card = card;
+        SetStats();
+        UpdateZone();
     }
 
-    public void SetStats()
+    void SetStats()
     {
         cardName.text = card.name;
         cardDescription.text = card.description;
         stats.text = card.power + "/" + card.toughness + "";
         art.sprite = card.art;
     }
+    
+    void UpdateZone()
+    {
+        CardZone newZone = card?.state.zone;
+        if (newZone == currentZone) return;
+
+        if (currentZone != null && currentZone.visual != null)
+            currentZone.visual.RemoveCard(this);
+
+        currentZone = newZone;
+
+        if (currentZone != null && currentZone.visual != null)
+            currentZone.visual.AddCard(this);
+    }
+
 
     // Update is called once per frame
     void Update()
     {
-        
+        transform.position += (basePos - transform.position) * Time.deltaTime;
+        transform.rotation = baseRot;
+        if (card != null && card.state != null && card.state.tapped)
+        {
+            
+            transform.rotation*= Quaternion.Euler(0,0,90);
+        }
+        UpdateZone();
     }
 }

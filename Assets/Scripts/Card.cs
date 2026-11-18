@@ -32,10 +32,72 @@ public class CardData
     }
 }
 
+public class CardState
+{
+    public bool tapped { get; private set; } = false;
+    public bool summoningSick { get; private set; } = true;
+    public bool declaredAttacker { get; private set; } = false;
+    public int damage { get; private set; } = 0;
+    public Card blockingTarget { get; private set; } = null;
+    public CardZone zone { get; private set; }
+    public CardPlayer owner { get; private set; }
+
+    public CardState(CardPlayer owner, CardZone zone)
+    {
+        this.owner = owner;
+        this.zone = zone;
+    }
+    
+    public void Tap()
+    {
+        tapped = true;
+    }
+
+    public void Untap()
+    {
+        tapped = false;
+    }
+
+    public void Endstep()
+    {
+        damage = 0;
+        summoningSick = false;
+    }
+
+    public void Heal()
+    {
+        damage = 0;
+    }
+
+    public void DeclareAttacker()
+    {
+        declaredAttacker = true;
+    }
+
+    public void DeclareBlocker(Card card)
+    {
+        blockingTarget = card;
+    }
+    
+    public void EndCombat()
+    {
+        blockingTarget = null;
+        declaredAttacker = false;
+    }
+
+    public void ChangeZone(CardZone newZone)
+    {
+        zone = newZone;
+    }
+
+    public void TakeDamage(int damage)
+    {
+        this.damage += damage;
+    }
+}
+
 public class Card
 {
-    public CardPlayer owner;
-    public CardZone zone;
     public CardData cardData;
     TriggerEventSystem triggerEventSystem;
     
@@ -50,14 +112,11 @@ public class Card
     public readonly List<Trigger> abilities;
     
     //state
-    bool tapped = false;
-    public bool canAttack  = false;
-    int damage = 0;
-    bool declaredAttacker = false;
-
-    public Card(CardData cardData, CardPlayer owner)
+    public CardState state;
+    
+    public Card(CardData cardData, CardPlayer owner, CardZone zone)
     {
-        this.owner = owner;
+        state = new CardState(owner, zone);
         
         this.cardData = cardData;
         
@@ -67,7 +126,7 @@ public class Card
         power = cardData.power;
         toughness = cardData.toughness;
         keywords = cardData.keywords;
-        this.art = cardData.art;
+        art = cardData.art;
         
         abilities = new List<Trigger>();
         foreach(TriggerData data in cardData.abilities)
@@ -78,45 +137,34 @@ public class Card
     
     public void Tap()
     {
-        tapped = true;
+        state.Tap();
         triggerEventSystem?.TriggerEvent("CardTap", new EffectSource(this));
     }
 
     public void Untap()
     {
-        tapped = false;
+        state.Untap();
         triggerEventSystem?.TriggerEvent("CardUntap", new EffectSource(this));
     }
 
     public void Endstep()
     {
-        Heal();
-        canAttack = true;
+        state.Endstep();
     }
 
     public void Heal()
     {
-        damage = 0;
+        state.Heal();
     }
 
     public void TakeDamage(int damage)
     {
-        this.damage += damage;
-        if (this.damage > this.toughness)
-        {
-            Die();
-        }
-    }
-
-    public void Die()
-    {
-        CardZone.MoveCard(this, owner.graveyard);
-        triggerEventSystem.TriggerEvent("CardDie", new EffectSource(this));
+        state.TakeDamage(damage);
     }
 
     public void DeclareAttacker()
     {
-        declaredAttacker = true;
+        state.DeclareAttacker();
         triggerEventSystem?.TriggerEvent("DeclaredAttacker", new EffectSource(this));
         Tap();
     }

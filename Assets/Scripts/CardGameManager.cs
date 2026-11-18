@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net.NetworkInformation;
+using System.Threading.Tasks;
 using UnityEngine;
 
 public class CardGameManager
@@ -18,17 +19,18 @@ public class CardGameManager
     private int totalRounds = 3;
     private int numDecks = 3;
     private int cardsPerDeck = 4;
+    
+    PlayingAreaVisual playingArea;
 
-    public CardGameManager(CardPlayer player1, CardPlayer player2)
+    public CardGameManager(CardPlayer player1, CardPlayer player2, PlayingAreaVisual playingArea = null)
     {
         this.player1 = player1;
         this.player2 = player2;
-        
         CardPlayer.SetOpponents(player1, player2);
-        StartGame();
+        this.playingArea = playingArea;
     }
 
-    void StartGame()
+    public async Task StartGame()
     {
         Debug.Log("Starting game");
         
@@ -36,18 +38,26 @@ public class CardGameManager
         firstPlayer = player1;
         Debug.Log("First player chosen");
         
-        Queue<List<Card>> player1Decks =  player1.CreateDecks(numDecks, cardsPerDeck);
-        Queue<List<Card>> player2Decks =  player2.CreateDecks(numDecks, cardsPerDeck);
+        Queue<List<CardData>> player1Decks = await player1.CreateDecks(numDecks, cardsPerDeck);
+        Queue<List<CardData>> player2Decks = await player2.CreateDecks(numDecks, cardsPerDeck);
         
         for (int i = 0; i < totalRounds; i++)
         {
             //TODO: choose active decks
-            List<Card> player1Deck = player1Decks.Dequeue();
-            List<Card> player2Deck = player2Decks.Dequeue();
+            List<CardData> player1Deck = player1Decks.Dequeue();
+            List<CardData> player2Deck = player2Decks.Dequeue();
             
             Debug.Log("Starting Round " + (i+1));
-            RoundManager roundManager = new RoundManager(player1, player2, firstPlayer, player1Deck, player2Deck, triggerEventSystem);
-            CardPlayer winner = roundManager.StartRound();
+            RoundManager roundManager;
+            if (playingArea != null)
+            {
+                roundManager = new RoundManager(player1, player2, firstPlayer, player1Deck, player2Deck, triggerEventSystem, playingArea);
+            }
+            else
+            {
+                roundManager = new RoundManager(player1, player2, firstPlayer, player1Deck, player2Deck, triggerEventSystem);
+            }
+            CardPlayer winner = await roundManager.StartRound();
             if (winner == player1)
             {
                 player1Score += 1;
@@ -79,12 +89,13 @@ public class RoundManager
     CardPlayer player2;
     public CardPlayer activePlayer;
     
-    List<Card> player1Deck;
-    List<Card> player2Deck;
+    List<CardData> player1Deck;
+    List<CardData> player2Deck;
     
     TriggerEventSystem triggerEventSystem;
-
-    public RoundManager(CardPlayer player1, CardPlayer player2, CardPlayer activePlayer, List<Card> player1Deck, List <Card> player2Deck, TriggerEventSystem triggerEventSystem)
+    PlayingAreaVisual playingArea;
+    
+    public RoundManager(CardPlayer player1, CardPlayer player2, CardPlayer activePlayer, List<CardData> player1Deck, List <CardData> player2Deck, TriggerEventSystem triggerEventSystem, PlayingAreaVisual playingArea = null)
     {
         this.player1 = player1;
         this.player2 = player2;
@@ -92,32 +103,37 @@ public class RoundManager
         this.player1Deck = player1Deck;
         this.player2Deck = player2Deck;
         this.triggerEventSystem = triggerEventSystem;
+        this.playingArea = playingArea;
     }
 
-    public CardPlayer StartRound()
+    public async Task<CardPlayer> StartRound()
     {
-        foreach(Card card in player1Deck) card.RegisterTriggers(triggerEventSystem);
-        foreach(Card card in player2Deck) card.RegisterTriggers(triggerEventSystem);
         player1.StartNewRound(triggerEventSystem);
         player2.StartNewRound(triggerEventSystem);
-        player1.hand.AddCard(player1Deck);
-        player2.hand.AddCard(player2Deck);
-        triggerEventSystem.TriggerEvent("RoundStart");
+        ReadyPlayers();
+        List<Card> deck1 = CreateDeck(player1Deck,player1,player1.hand);
+        List<Card> deck2 = CreateDeck(player2Deck,player2,player2.hand);
+        player1.hand.AddCard(deck1);
+        player2.hand.AddCard(deck2);
+       
+        foreach(Card card in deck1) card.RegisterTriggers(triggerEventSystem);
+        foreach(Card card in deck2) card.RegisterTriggers(triggerEventSystem);
+       
+        await triggerEventSystem.TriggerEvent("RoundStart");
         while (true)
         {
-            
             for (int i = 0; i < player1Deck.Count; i++)
             {
-                triggerEventSystem.TriggerEvent("TurnStart");
-                Untap();
-                Upkeep();
-                PreCombat();
+                await triggerEventSystem.TriggerEvent("TurnStart");
+                await Untap();
+                await Upkeep();
+                await PreCombat();
                 
-                DeclareAttackers();
-                DeclareBlockers();
-                Damage();
+                await DeclareAttackers();
+                await DeclareBlockers(); 
+                await Damage();
                 
-                Endstep();
+                await Endstep();
                
                 /*
                 
@@ -126,60 +142,102 @@ public class RoundManager
                 */
                 activePlayer = activePlayer.opponent;
             
-                triggerEventSystem.TriggerEvent("TurnEnd");
+                await triggerEventSystem.TriggerEvent("TurnEnd");
             }
-            
             break;
         }
         CardPlayer winner = activePlayer;
-        foreach(Card card in player1Deck) card.UnregisterTriggers(triggerEventSystem);
-        foreach(Card card in player2Deck) card.UnregisterTriggers(triggerEventSystem);
+        foreach(Card card in deck1) card.UnregisterTriggers(triggerEventSystem);
+        foreach(Card card in deck2) card.UnregisterTriggers(triggerEventSystem);
         return winner;
     }
 
-    private void Untap()
+    private async Task Untap()
     {
-        triggerEventSystem.TriggerEvent("Untap", new EffectSource(this));
+        await triggerEventSystem.TriggerEvent("Untap", new EffectSource(this));
         TriggerData triggerData = new TriggerData("", new Untap(new AllMyCardsInPlay()));
-        new Trigger(triggerData, new EffectSource(this)).Activate();
+        await new Trigger(triggerData, new EffectSource(this)).Activate();
     }
 
-    private void Upkeep()
+    private async Task Upkeep()
     {
-        triggerEventSystem.TriggerEvent("Upkeep", new EffectSource(this));
+        await triggerEventSystem.TriggerEvent("Upkeep", new EffectSource(this));
     }
 
-    private void PreCombat()
+    private async Task PreCombat()
     {
-        triggerEventSystem.TriggerEvent("Precombat", new EffectSource(this));
+        await triggerEventSystem.TriggerEvent("Precombat", new EffectSource(this));
         TriggerData triggerData = new TriggerData("", new PlayCard(new AnyCardInMyHand()));
-        new Trigger(triggerData, new EffectSource(this)).Activate();
-        
+        await new Trigger(triggerData, new EffectSource(this)).Activate();
     }
 
-    private void DeclareAttackers()
+    private async Task DeclareAttackers()
     {
-        triggerEventSystem.TriggerEvent("DeclareAttackers", new EffectSource(this));
+        await triggerEventSystem.TriggerEvent("DeclareAttackers", new EffectSource(this));
         TriggerData triggerData = new TriggerData("", new DeclareAttackers(new ChooseAttackers()));
-        new Trigger(triggerData, new EffectSource(this)).Activate();
+        await new Trigger(triggerData, new EffectSource(this)).Activate();
     }
 
-    private void DeclareBlockers()
+    private async Task DeclareBlockers()
     {
-        triggerEventSystem.TriggerEvent("DeclareBlockers", new EffectSource(this));
+        await triggerEventSystem.TriggerEvent("DeclareBlockers", new EffectSource(this));
     }
 
-    private void Damage()
+    private async Task Damage()
     {
-        triggerEventSystem.TriggerEvent("Damage", new EffectSource(this));
+        await triggerEventSystem.TriggerEvent("Damage", new EffectSource(this));
         //TODO: real combat
-        
     }
 
-    private void Endstep()
+    private async Task Endstep()
     {
-        triggerEventSystem.TriggerEvent("Endstep", new EffectSource(this));
+        await triggerEventSystem.TriggerEvent("Endstep", new EffectSource(this));
         TriggerData triggerData = new TriggerData("", new EndstepReset(new AllCardsInPlay()));
-        new Trigger(triggerData, new EffectSource(this)).Activate();
+        await new Trigger(triggerData, new EffectSource(this)).Activate();
+    }
+
+    private List<Card> CreateDeck(List<CardData> cards, CardPlayer player, CardZone hand)
+    {
+        List<Card> deck = new List<Card>();
+        foreach(CardData cardData in cards)
+        {
+            Card newCard = new Card(cardData, player, hand);
+            deck.Add(newCard);
+
+            if (playingArea != null)
+            {
+                playingArea.SpawnCard(newCard);
+            }
+        }
+        return deck;
+    }
+
+    private void ReadyPlayers()
+    {
+        if (playingArea!=null)
+        {
+            CardZone hand1 = new CardZone(CardZone.ZoneType.HAND, triggerEventSystem,playingArea.player1Hand);
+            CardZone battlefield1 = new CardZone(CardZone.ZoneType.INPLAY, triggerEventSystem,playingArea.player1Battlefield);
+            CardZone graveyard1 = new CardZone(CardZone.ZoneType.GRAVEYARD, triggerEventSystem,playingArea.player1Graveyard);
+            player1.hand = hand1;
+            player1.inPlay = battlefield1;
+            player1.graveyard = graveyard1;
+            
+            CardZone hand2 = new CardZone(CardZone.ZoneType.HAND, triggerEventSystem,playingArea.player2Hand);
+            CardZone battlefield2 = new CardZone(CardZone.ZoneType.INPLAY, triggerEventSystem,playingArea.player2Battlefield);
+            CardZone graveyard2 = new CardZone(CardZone.ZoneType.GRAVEYARD, triggerEventSystem,playingArea.player2Graveyard);
+            player2.hand = hand2;
+            player2.inPlay = battlefield2;
+            player2.graveyard = graveyard2;
+        }
+        else
+        {
+            player1.hand = new CardZone(CardZone.ZoneType.HAND, triggerEventSystem);
+            player1.graveyard = new CardZone(CardZone.ZoneType.GRAVEYARD, triggerEventSystem);
+            player1.inPlay = new CardZone(CardZone.ZoneType.INPLAY, triggerEventSystem);
+            player2.hand = new CardZone(CardZone.ZoneType.HAND, triggerEventSystem);
+            player2.graveyard = new CardZone(CardZone.ZoneType.GRAVEYARD, triggerEventSystem);
+            player2.inPlay = new CardZone(CardZone.ZoneType.INPLAY, triggerEventSystem);
+        }
     }
 }
