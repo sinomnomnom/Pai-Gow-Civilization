@@ -1,0 +1,18 @@
+YarnSpinner Conventions
+
+	.yarn file names:
+		ONE FILE per major NPC (i.e. old man, pai gow champ, etc.) named after them: OldMan.yarn
+		World elements (like signs or smth) - one file per reasonable group: I know we don't have a tavern, but Tavern_Signs.yarn would work - location, then thing
+		ONE variables file, please do not make any new variables files
+
+	Node naming conventions:
+		Entry Nodes (the nodes called from scripts, i.e. OldMan Start): 
+			Character Nodes: CharacterName_Place (OldMan_Start)
+			World Nodes: Thing_Location (Sign_TavernDoor)
+		Sub-Nodes (Nodes called within .yarn files):
+			 just be reasonable with the context: OldMan_Match_Win
+	
+	Variable naming conventions:
+		Global Variables: prefix with $category, then just have reasonable context ($npc_oldMan_met)
+		Temp Variables: $temp_varName (only use for calculations or single conversation checks so that you don't have to add more real vars)
+		

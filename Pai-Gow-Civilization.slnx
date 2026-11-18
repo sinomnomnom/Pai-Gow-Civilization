@@ -1,10 +1,9 @@
-<Solution>
+﻿<Solution>
   <Project Path="YarnSpinner.Addons.Snaaake.csproj" />
   <Project Path="YarnSpinner.Unity.csproj" />
   <Project Path="YarnSpinner.Addons.ClassicRPG.csproj" />
   <Project Path="YarnSpinner.Unity.Editor.csproj" />
   <Project Path="YarnSpinner.Addons.TextAnimatorIntegration.Editor.csproj" />
   <Project Path="YarnSpinner.Addons.TextAnimatorIntegration.csproj" />
-  <Project Path="Assembly-CSharp-Editor.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
 </Solution>
